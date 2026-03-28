@@ -5,6 +5,7 @@
 #include <memory>
 #include <cassert>
 #include <stdexcept>
+#include <algorithm>
 
 namespace sjtu{
 
@@ -226,7 +227,7 @@ public:
         return insert(T(std::forward<Args>(args)...));
     }
 
-    std::pair<iterator, bool> insert(const T& val){
+    std::pair<iterator, bool> insert(const T val){//Fix:为了调用移动构造,这里传值.
         if (!root) {
             root = std::make_unique<Node>(std::move(val));
             return {iterator(root.get(), root.get()), true};
@@ -309,6 +310,7 @@ public:
         }
         return {iterator(ret, root.get()), true};
     }
+
     void updateSubTreeSize(Node* cur, int delta){
         while (cur -> parent) {
             Node* nxt = cur -> parent;
@@ -316,6 +318,59 @@ public:
             cur = nxt;
         }
     }
+
+    void swapNode(Node* A, Node* B) {
+        std::swap(A->isRed, B->isRed);
+        std::swap(A->subTreeSize, B->subTreeSize);
+        std::unique_ptr<Node>& APtr = getUniquePtrOf(A);
+
+        if (A->rightChild.get() == B) {
+            Node* AParent = A->parent;
+            std::unique_ptr<Node> ALeft = std::move(A->leftChild);
+            std::unique_ptr<Node> BRight = std::move(B->rightChild); 
+
+            B->parent = AParent;
+            A->parent = B;
+            A->leftChild = nullptr;
+            A->rightChild = std::move(BRight);
+            if (A->rightChild) A->rightChild->parent = A;
+            B->leftChild = std::move(ALeft);
+            if (B->leftChild) B->leftChild->parent = B;
+
+            APtr.release(); 
+            B->rightChild.reset(A); 
+            APtr.reset(B); 
+        } else {
+            Node* AParent = A->parent;
+            Node* BParent = B->parent;
+            std::unique_ptr<Node>& BPtr = getUniquePtrOf(B);
+
+            std::unique_ptr<Node> ALeft = std::move(A->leftChild);
+            std::unique_ptr<Node> ARight = std::move(A->rightChild);
+            std::unique_ptr<Node> BRight = std::move(B->rightChild); 
+
+            A->parent = BParent;
+            B->parent = AParent;
+
+            A->leftChild = nullptr;
+            A->rightChild = std::move(BRight);
+            if (A->rightChild) A->rightChild->parent = A;
+
+            B->leftChild = std::move(ALeft);
+            if (B->leftChild) B->leftChild->parent = B;
+            B->rightChild = std::move(ARight);
+            if (B->rightChild) B->rightChild->parent = B;
+
+            Node* rawA = APtr.release();
+            Node* rawB = BPtr.release();
+
+            APtr.reset(rawB);
+            BPtr.reset(rawA);
+        }
+    }//辅助函数,完全交换两个节点在树上的逻辑地位
+    //Credit: copilot
+
+
     size_t erase(const T& val){
         iterator iter = find(val);
         if (iter == end()) {
@@ -324,40 +379,19 @@ public:
         Node* currentNode = iter.holdingNode;
         if (currentNode -> leftChild && currentNode -> rightChild) {
             Node* suc = successor(currentNode);
-            currentNode -> value = std::move(suc -> value);
-            currentNode = suc;
+            swapNode(currentNode, suc);
         }//情况1:当前节点有两个子节点,转情况2或3
+        //Fix:不应该只是交换val,为了保持迭代器有效,交换节点
         if (currentNode -> leftChild || currentNode -> rightChild) {
             Node* father = currentNode -> parent;
             updateSubTreeSize(father, -1);//处理size的更新
-            if (currentNode -> isLeftChild()) {
-                if (currentNode -> leftChild) {
-                    std::unique_ptr<Node> tmp = std::move(currentNode -> leftChild);
-                    tmp -> parent = father;
-                    father -> leftChild = std::move(tmp);
-                    return 1;
-                }
-                if (currentNode -> rightChild) {
-                    std::unique_ptr<Node> tmp = std::move(currentNode -> rightChild);
-                    tmp -> parent = father;
-                    father -> leftChild = std::move(tmp);
-                    return 1;
-                }
-            }
-            if (currentNode -> isRIghtChild()) {
-                if (currentNode -> leftChild) {
-                    std::unique_ptr<Node> tmp = std::move(currentNode -> leftChild);
-                    tmp -> parent = father;
-                    father -> rightChild = std::move(tmp);
-                    return 1;
-                }
-                if (currentNode -> rightChild) {
-                    std::unique_ptr<Node> tmp = std::move(currentNode -> rightChild);
-                    tmp -> parent = father;
-                    father -> rightChild = std::move(tmp);
-                    return 1;
-                }
-            }
+            std::unique_ptr<Node> child = currentNode->leftChild ? 
+                                  std::move(currentNode->leftChild) : 
+                                  std::move(currentNode->rightChild);
+            child -> parent = father;
+            child -> isRed = false; 
+            getUniquePtrOf(currentNode) = std::move(child); 
+            return 1;
         }//情况2:当前节点有一个子节点,处理完就可以直接返回
         Node* vic = currentNode;
         //情况3:没有子节点,该情况是处理情况1,2后自然落到的
@@ -369,11 +403,10 @@ public:
             if (isRed(currentNode)) {
                 Node* father = currentNode -> parent;
                 updateSubTreeSize(father, -1);
-                std::unique_ptr<Node> cur = getUniquePtrOf(currentNode);
-                cur.reset(nullptr);
+                getUniquePtrOf(currentNode).reset(nullptr);
                 return 1;
             }//情况3.1:是红色或根节点
-            while (!(isRoot(currentNode)) && !(isRed(currentNode))) {
+            while (!isRoot(currentNode) && !isRed(currentNode)) {
                 Node* father = currentNode -> parent;
                 if (currentNode -> isLeftChild()) {
                     Node* sibling = father -> rightChild.get();
@@ -383,8 +416,8 @@ public:
                         father -> isRed = true;
                         continue;
                     }//情况3.2.1: 兄弟是红色节点
-                    if (!(isRed(sibling)) && !(isRed(sibling -> leftChild.get()) 
-                        && !(isRed(sibling -> rightChild.get())))){
+                    if (!isRed(sibling) && !isRed(sibling -> leftChild.get()) 
+                        && !isRed(sibling -> rightChild.get())){
                         sibling -> isRed = true;
                         currentNode = father;
                         if (currentNode -> isRed) {
@@ -393,14 +426,14 @@ public:
                         }//特判:father是红
                         continue;
                     }//情况3.2.2: 兄弟和兄弟的孩子都是黑色节点
-                    if (!(isRed(sibling)) && (isRed(sibling -> leftChild.get()))
-                        && !(isRed(sibling -> rightChild.get()))){
-                        rotateRight(sibling);
+                    if (!isRed(sibling) && isRed(sibling -> leftChild.get())
+                        && !isRed(sibling -> rightChild.get())){
+                        rotateRight(getUniquePtrOf(sibling));
                         sibling -> isRed = true;
                         sibling -> parent -> isRed = false;
                         sibling = sibling -> parent;
                     }//情况3.2.3: 兄弟是黑色节点,兄弟的左孩子红右孩子黑,旋转并转到情况3.2.4
-                    if (!(isRed(sibling)) && isRed(sibling -> rightChild.get())) {
+                    if (!isRed(sibling) && isRed(sibling -> rightChild.get())) {
                         rotateLeft(getUniquePtrOf(father));
                         sibling -> rightChild -> isRed = false;
                         bool colorOfFather = father -> isRed;
@@ -418,8 +451,8 @@ public:
                         father -> isRed = true;
                         continue;
                     }
-                    if (!(isRed(sibling)) && !(isRed(sibling -> leftChild.get()) 
-                        && !(isRed(sibling -> rightChild.get())))){
+                    if (!isRed(sibling) && !isRed(sibling -> leftChild.get()) 
+                        && !isRed(sibling -> rightChild.get())){
                         sibling -> isRed = true;
                         currentNode = father;
                         if (currentNode -> isRed) {
@@ -428,14 +461,14 @@ public:
                         }
                         continue;
                     }
-                    if (!(isRed(sibling)) && (isRed(sibling -> rightChild.get()))
-                        && !(isRed(sibling -> leftChild.get()))){
-                        rotateleft(sibling);
+                    if (!isRed(sibling) && isRed(sibling -> rightChild.get())
+                        && !isRed(sibling -> leftChild.get())){
+                        rotateLeft(getUniquePtrOf(sibling));
                         sibling -> isRed = true;
                         sibling -> parent -> isRed = false;
                         sibling = sibling -> parent;
                     }
-                    if (!(isRed(sibling)) && isRed(sibling -> leftChild.get())) {
+                    if (!isRed(sibling) && isRed(sibling -> leftChild.get())) {
                         rotateRight(getUniquePtrOf(father));
                         sibling -> leftChild -> isRed = false;
                         bool colorOfFather = father -> isRed;
@@ -448,9 +481,9 @@ public:
             }
             Node* father = vic -> parent;
             updateSubTreeSize(father, -1);
-            std::unique_ptr<Node> cur = getUniquePtrOf(currentNode);
-            cur.reset(nullptr);
+            getUniquePtrOf(vic).reset(nullptr);
         }//维护平衡之后正式删除victim
+        if (root) {root -> isRed = false;}
         return 1;
     }//返回0/1表示是否找到元素
 };
