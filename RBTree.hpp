@@ -513,7 +513,36 @@ public:
         }
         return lastNode;
     }
-    size_t range(const T& l, const T& r) const {}
+    size_t range(const T& l, const T& r) const {
+        if (l > r) {return 0;}
+        if (!root) {return 0;}
+        Node* currentNode = root.get();
+        size_t smallerThanL = 0, biggerThanR = 0;
+        while (currentNode) {
+            if (cmp(currentNode -> value, l)) {
+                smallerThanL += currentNode -> leftChild -> subTreeSize + 1;
+                currentNode = currentNode -> rightChild.get();
+            } else if (cmp(l, currentNode -> value)) {
+                currentNode = currentNode -> leftChild.get();
+            } else {
+                smallerThanL += currentNode -> leftChild -> subTreeSize;
+                break;
+            }
+        }
+        currentNode = root.get();
+        while (currentNode) {
+            if (cmp(currentNode -> value, r)){
+                currentNode = currentNode -> rightChild.get();
+            } else if (cmp(r, currentNode -> value)) {
+                biggerThanR += currentNode -> rightCHild -> subTreeSize + 1;
+                currentNode = currentNode -> leftChild.get();
+            } else {
+                biggerThanR += currentNode -> rightChild -> subTreeSize;
+                break;
+            }
+        }
+        return size() - smallerThanL - biggerThanR;
+    }
     RBTree(const RBTree& other) {
         iterator iter = other.begin();
         while (iter != other.end()){
