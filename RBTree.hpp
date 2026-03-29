@@ -28,14 +28,14 @@ public:
         Node() = default;
     };
 
-    size_t getSize(Node* nd){return nd ? nd -> subTreeSize : 0;}
-    bool isRed(Node* nd){
+    const size_t getSize(Node* nd) const {return nd ? nd -> subTreeSize : 0;}
+    const bool isRed(Node* nd) const {
         if (!nd) {return false;}
         return nd -> isRed;
     }
-    bool isRoot(Node* nd) {return nd == root.get();}
+    const bool isRoot(Node* nd) const {return nd == root.get();}
 
-    static const Node* predecessor(Node* nd){
+    static Node* predecessor(Node* nd) {
         if (!nd) {return nullptr;}
         if (nd -> leftChild) {
             nd = nd -> leftChild.get();
@@ -49,7 +49,7 @@ public:
         }
         return nd -> parent;
     }
-    static const Node* successor(Node* nd){
+    static Node* successor(Node* nd) {
         if (!nd) {return nullptr;}
         if (nd -> rightChild) {
             nd = nd -> rightChild.get();
@@ -64,7 +64,7 @@ public:
         return nd -> parent;
     }
 
-    static const Node* getFront(Node* nd){
+    static Node* getFront(Node* nd) {
         while (nd -> parent) {
             nd = nd -> parent;
         }
@@ -73,7 +73,7 @@ public:
         }
         return nd;
     }//辅助函数,对任意node返回树中第一个node
-    static const Node* getBack(Node* nd){
+    static Node* getBack(Node* nd) {
         while (nd -> parent) {
             nd = nd -> parent;
         }
@@ -493,7 +493,7 @@ public:
             if (cmp(currentNode -> value, val)){
                 currentNode = currentNode -> rightChild.get();
             } else {
-                lastNode = iterator(currentNode);
+                lastNode = iterator(currentNode, root.get());
                 currentNode = currentNode -> leftChild.get();
             }
         }
@@ -507,25 +507,25 @@ public:
             if (!cmp(val, currentNode -> value)) {
                 currentNode = currentNode -> rightChild.get();
             } else {
-                lastNode = iterator(currentNode);
+                lastNode = iterator(currentNode, root.get());
                 currentNode = currentNode -> leftChild.get();
             }
         }
         return lastNode;
     }
     size_t range(const T& l, const T& r) const {
-        if (l > r) {return 0;}
+        if (cmp(r, l)) {return 0;}
         if (!root) {return 0;}
         Node* currentNode = root.get();
         size_t smallerThanL = 0, biggerThanR = 0;
         while (currentNode) {
             if (cmp(currentNode -> value, l)) {
-                smallerThanL += currentNode -> leftChild -> subTreeSize + 1;
+                smallerThanL += getSize(currentNode -> leftChild.get()) + 1;
                 currentNode = currentNode -> rightChild.get();
             } else if (cmp(l, currentNode -> value)) {
                 currentNode = currentNode -> leftChild.get();
             } else {
-                smallerThanL += currentNode -> leftChild -> subTreeSize;
+                smallerThanL += getSize(currentNode -> leftChild.get());
                 break;
             }
         }
@@ -534,10 +534,10 @@ public:
             if (cmp(currentNode -> value, r)){
                 currentNode = currentNode -> rightChild.get();
             } else if (cmp(r, currentNode -> value)) {
-                biggerThanR += currentNode -> rightCHild -> subTreeSize + 1;
+                biggerThanR += getSize(currentNode -> rightChild.get()) + 1;
                 currentNode = currentNode -> leftChild.get();
             } else {
-                biggerThanR += currentNode -> rightChild -> subTreeSize;
+                biggerThanR += getSize(currentNode -> rightChild.get());
                 break;
             }
         }
@@ -549,24 +549,28 @@ public:
             insert(*iter);
             ++iter;
         }
+        cmp = other.cmp;
     }
     RBTree& operator=(const RBTree& other) {
+        if (this == &other) {return *this;}
         if (root) {root.reset(nullptr);}
         iterator iter = other.begin();
         while (iter != other.end()){
             insert(*iter);
             ++iter;
         }
+        cmp = other.cmp;
+        return *this;
     }
     RBTree(RBTree&& other) {
-        if (root) {root.reset(nullptr);}
-        Node* rt = other -> root.release();
-        root.reset(rt);
+        root = std::move(other.root);
+        cmp = std::move(other.cmp);
     }
     RBTree& operator=(RBTree&& other) noexcept {
-        if (root) {root.reset(nullptr);}
-        Node* rt = other -> root.release();
-        root.reset(rt);
+        if (this == &other) {return *this;}
+        root = std::move(other.root);
+        cmp = std::move(other.cmp);
+        return *this;
     }
 };
 
