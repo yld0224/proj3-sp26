@@ -1,7 +1,4 @@
-#include "src.hpp"
-#if defined (_UNORDERED_MAP_)  || (defined (_LIST_)) || (defined (_MAP_)) || (defined (_SET_)) || (defined (_UNORDERED_SET_))||(defined (_GLIBCXX_MAP)) || (defined (_GLIBCXX_UNORDERED_MAP))
-BOOM :)
-#endif
+#include "../RBTree.hpp"
 #include<iostream>
 
 int main() {
@@ -10,8 +7,8 @@ int main() {
 //    srand(0);
 //    clock_t start, end;
 //    start = clock();
-    ESet<long long> s[25];
-    ESet<long long>::iterator it;
+    sjtu::RBTree<long long> s[25];
+    sjtu::RBTree<long long>::iterator it;
     int op, lst=0, it_a=-1, valid = 0, cnt=1;
     while (scanf("%d", &op) != EOF) {
         long long a, b, c;

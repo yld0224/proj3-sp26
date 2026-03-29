@@ -178,7 +178,7 @@ public:
     void rotateRight(std::unique_ptr<Node>& nd){//引用unique_ptr,防止转移所有权到局部
         assert(nd -> leftChild);
         std::unique_ptr<Node> l = std::move(nd -> leftChild);
-        l -> parent = nd.parent;
+        l -> parent = nd -> parent;
         nd -> parent = l.get();
         if (l -> rightChild) {
             l -> rightChild -> parent = nd.get();
@@ -192,7 +192,7 @@ public:
     void rotateLeft(std::unique_ptr<Node>& nd){
         assert(nd -> rightChild);
         std::unique_ptr<Node> r = std::move(nd -> rightChild);
-        r -> parent = nd.parent;
+        r -> parent = nd -> parent;
         nd -> parent = r.get();
         if (r -> leftChild) {
             r -> leftChild -> parent = nd.get();
@@ -384,7 +384,7 @@ public:
         //Fix:不应该只是交换val,为了保持迭代器有效,交换节点
         if (currentNode -> leftChild || currentNode -> rightChild) {
             Node* father = currentNode -> parent;
-            updateSubTreeSize(father, -1);//处理size的更新
+            updateSubTreeSize(currentNode, -1);//处理size的更新
             std::unique_ptr<Node> child = currentNode->leftChild ? 
                                   std::move(currentNode->leftChild) : 
                                   std::move(currentNode->rightChild);
@@ -401,8 +401,7 @@ public:
                 return 1;
             }
             if (isRed(currentNode)) {
-                Node* father = currentNode -> parent;
-                updateSubTreeSize(father, -1);
+                updateSubTreeSize(currentNode, -1);
                 getUniquePtrOf(currentNode).reset(nullptr);
                 return 1;
             }//情况3.1:是红色或根节点
@@ -479,13 +478,67 @@ public:
                     }
                 }
             }
-            Node* father = vic -> parent;
-            updateSubTreeSize(father, -1);
+            updateSubTreeSize(vic, -1);
             getUniquePtrOf(vic).reset(nullptr);
         }//维护平衡之后正式删除victim
         if (root) {root -> isRed = false;}
         return 1;
     }//返回0/1表示是否找到元素
+
+    iterator lower_bound(const T& val) const {
+        if (!root) {return end();}
+        Node* currentNode = root.get();
+        iterator lastNode = end();//记录上一个比val大的节点
+        while (currentNode) {
+            if (cmp(currentNode -> value, val)){
+                currentNode = currentNode -> rightChild.get();
+            } else {
+                lastNode = iterator(currentNode);
+                currentNode = currentNode -> leftChild.get();
+            }
+        }
+        return lastNode;
+    }
+    iterator upper_bound(const T& val) const {
+        if (!root) {return end();}
+        Node* currentNode = root.get();
+        iterator lastNode = end();
+        while (currentNode) {
+            if (!cmp(val, currentNode -> value)) {
+                currentNode = currentNode -> rightChild.get();
+            } else {
+                lastNode = iterator(currentNode);
+                currentNode = currentNode -> leftChild.get();
+            }
+        }
+        return lastNode;
+    }
+    size_t range(const T& l, const T& r) const {}
+    RBTree(const RBTree& other) {
+        iterator iter = other.begin();
+        while (iter != other.end()){
+            insert(*iter);
+            ++iter;
+        }
+    }
+    RBTree& operator=(const RBTree& other) {
+        if (root) {root.reset(nullptr);}
+        iterator iter = other.begin();
+        while (iter != other.end()){
+            insert(*iter);
+            ++iter;
+        }
+    }
+    RBTree(RBTree&& other) {
+        if (root) {root.reset(nullptr);}
+        Node* rt = other -> root.release();
+        root.reset(rt);
+    }
+    RBTree& operator=(RBTree&& other) noexcept {
+        if (root) {root.reset(nullptr);}
+        Node* rt = other -> root.release();
+        root.reset(rt);
+    }
 };
 
 }
